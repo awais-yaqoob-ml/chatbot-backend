@@ -29,6 +29,28 @@ CHAT_HISTORY_COLLECTION = {
     ],
 }
 
+DOCUMENT_COLLECTION = {
+    "name": "Document",
+    "properties": [
+        Property(name="doc_id", data_type=DataType.TEXT),
+        Property(name="filename", data_type=DataType.TEXT),
+        Property(name="doc_summary", data_type=DataType.TEXT),
+        Property(name="topics", data_type=DataType.TEXT_ARRAY),
+        Property(name="uploaded_at", data_type=DataType.TEXT),
+        Property(name="chunk_count", data_type=DataType.INT),
+    ],
+}
+
+COMPANY_PROFILE_COLLECTION = {
+    "name": "CompanyProfile",
+    "properties": [
+        Property(name="profile_id", data_type=DataType.TEXT),
+        Property(name="summary", data_type=DataType.TEXT),
+        Property(name="topics", data_type=DataType.TEXT_ARRAY),
+        Property(name="last_updated", data_type=DataType.TEXT),
+    ],
+}
+
 
 def create_collections(client):
     existing = client.collections.list_all()
@@ -45,4 +67,18 @@ def create_collections(client):
             name="ChatHistory",
             vectorizer_config=Configure.Vectorizer.none(),
             properties=CHAT_HISTORY_COLLECTION["properties"],
+        )
+
+    if "Document" not in existing:
+        client.collections.create(
+            name="Document",
+            vectorizer_config=Configure.Vectorizer.none(),
+            properties=DOCUMENT_COLLECTION["properties"],
+        )
+
+    if "CompanyProfile" not in existing:
+        client.collections.create(
+            name="CompanyProfile",
+            vectorizer_config=Configure.Vectorizer.none(),
+            properties=COMPANY_PROFILE_COLLECTION["properties"],
         )

@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 
-from graph.nodes import intent_classifier_node, INTENT_GREETING, INTENT_SUMMARIZATION, INTENT_COMPANY_QA, INTENT_FALLBACK
+from graph.nodes import intent_classifier_node, INTENT_GREETING, INTENT_SUMMARIZATION, INTENT_COMPANY_QA, INTENT_FALLBACK, INTENT_COMPANY_INFO
 
 
 class MockLLM:
@@ -16,6 +16,12 @@ class MockLLM:
         return Mock(content=self.response)
 
 
+def make_mock_client():
+    """Create a mock Weaviate client that returns no company profile."""
+    client = Mock()
+    return client
+
+
 class TestIntentClassifier:
     """Test suite for intent classifier node."""
 
@@ -24,7 +30,7 @@ class TestIntentClassifier:
         llm = MockLLM("GREETING")
         state = {"user_message": "Hello there!"}
 
-        result = intent_classifier_node(state, llm)
+        result = intent_classifier_node(state, llm, make_mock_client())
 
         assert result["intent"] == INTENT_GREETING
         assert "error" not in result
@@ -34,7 +40,7 @@ class TestIntentClassifier:
         llm = MockLLM("SUMMARIZATION")
         state = {"user_message": "Summarize our conversation so far"}
 
-        result = intent_classifier_node(state, llm)
+        result = intent_classifier_node(state, llm, make_mock_client())
 
         assert result["intent"] == INTENT_SUMMARIZATION
 
@@ -43,16 +49,25 @@ class TestIntentClassifier:
         llm = MockLLM("COMPANY_QA")
         state = {"user_message": "What is the company PTO policy?"}
 
-        result = intent_classifier_node(state, llm)
+        result = intent_classifier_node(state, llm, make_mock_client())
 
         assert result["intent"] == INTENT_COMPANY_QA
+
+    def test_intent_classifier_company_info(self):
+        """Test classification of company info intent."""
+        llm = MockLLM("COMPANY_INFO")
+        state = {"user_message": "Tell me about the company"}
+
+        result = intent_classifier_node(state, llm, make_mock_client())
+
+        assert result["intent"] == INTENT_COMPANY_INFO
 
     def test_intent_classifier_fallback(self):
         """Test classification of fallback intent."""
         llm = MockLLM("FALLBACK")
         state = {"user_message": "Tell me a joke"}
 
-        result = intent_classifier_node(state, llm)
+        result = intent_classifier_node(state, llm, make_mock_client())
 
         assert result["intent"] == INTENT_FALLBACK
 
@@ -61,7 +76,7 @@ class TestIntentClassifier:
         llm = MockLLM("INVALID_INTENT")
         state = {"user_message": "Some message"}
 
-        result = intent_classifier_node(state, llm)
+        result = intent_classifier_node(state, llm, make_mock_client())
 
         assert result["intent"] == INTENT_FALLBACK
 
@@ -70,7 +85,7 @@ class TestIntentClassifier:
         llm = MockLLM("  GREETING  \n")
         state = {"user_message": "Hi!"}
 
-        result = intent_classifier_node(state, llm)
+        result = intent_classifier_node(state, llm, make_mock_client())
 
         assert result["intent"] == INTENT_GREETING
 
@@ -79,7 +94,7 @@ class TestIntentClassifier:
         llm = MockLLM("greeting")
         state = {"user_message": "Hello!"}
 
-        result = intent_classifier_node(state, llm)
+        result = intent_classifier_node(state, llm, make_mock_client())
 
         assert result["intent"] == INTENT_GREETING
 
@@ -89,7 +104,7 @@ class TestIntentClassifier:
         llm.invoke.side_effect = Exception("LLM error")
         state = {"user_message": "Test"}
 
-        result = intent_classifier_node(state, llm)
+        result = intent_classifier_node(state, llm, make_mock_client())
 
         assert result["error"] is not None
         assert result["intent"] == INTENT_FALLBACK
@@ -109,7 +124,7 @@ class TestIntentClassifier:
             llm = MockLLM(INTENT_GREETING)
             state = {"user_message": example}
 
-            result = intent_classifier_node(state, llm)
+            result = intent_classifier_node(state, llm, make_mock_client())
 
             assert result["intent"] == INTENT_GREETING, f"Failed for: {example}"
 
@@ -126,7 +141,7 @@ class TestIntentClassifier:
             llm = MockLLM(INTENT_SUMMARIZATION)
             state = {"user_message": example}
 
-            result = intent_classifier_node(state, llm)
+            result = intent_classifier_node(state, llm, make_mock_client())
 
             assert result["intent"] == INTENT_SUMMARIZATION, f"Failed for: {example}"
 
@@ -143,7 +158,7 @@ class TestIntentClassifier:
             llm = MockLLM(INTENT_FALLBACK)
             state = {"user_message": example}
 
-            result = intent_classifier_node(state, llm)
+            result = intent_classifier_node(state, llm, make_mock_client())
 
             assert result["intent"] == INTENT_FALLBACK, f"Failed for: {example}"
 

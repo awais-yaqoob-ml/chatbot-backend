@@ -5,10 +5,12 @@ from langgraph.graph import StateGraph, END
 from graph.state import AgentState
 from graph.nodes import (
     intent_classifier_node,
+    rewrite_query_node,
     retrieve_node,
     greeting_agent_node,
     summarization_agent_node,
     company_qa_agent_node,
+    company_info_agent_node,
     fallback_agent_node,
     error_handler_node,
     # Legacy nodes for backward compatibility
@@ -56,7 +58,13 @@ def get_compiled_graph():
     # Intent Classification
     workflow.add_node(
         "intent_classifier",
-        lambda state: intent_classifier_node(state, llm),
+        lambda state: intent_classifier_node(state, llm, client),
+    )
+
+    # Query Rewriting (for COMPANY_QA intent)
+    workflow.add_node(
+        "rewrite_query",
+        lambda state: rewrite_query_node(state, llm),
     )
 
     # Retrieval (for COMPANY_QA intent)
@@ -79,6 +87,11 @@ def get_compiled_graph():
     workflow.add_node(
         "company_qa_agent",
         lambda state: company_qa_agent_node(state, llm),
+    )
+
+    workflow.add_node(
+        "company_info_agent",
+        lambda state: company_info_agent_node(state, client, llm),
     )
 
     workflow.add_node(
@@ -105,19 +118,22 @@ def get_compiled_graph():
         {
             "greeting_agent": "greeting_agent",
             "summarization_agent": "summarization_agent",
-            "company_qa_agent": "retrieve_node",  # COMPANY_QA requires retrieval first
+            "company_info_agent": "company_info_agent",
+            "company_qa_agent": "rewrite_query",  # COMPANY_QA: rewrite → retrieve → answer
             "fallback_agent": "fallback_agent",
             "error_handler": "error_handler",
         },
     )
 
-    # Retrieval → Company QA Agent
+    # Rewrite → Retrieval → Company QA Agent
+    workflow.add_edge("rewrite_query", "retrieve_node")
     workflow.add_edge("retrieve_node", "company_qa_agent")
 
     # End states
     workflow.add_edge("greeting_agent", END)
     workflow.add_edge("summarization_agent", END)
     workflow.add_edge("company_qa_agent", END)
+    workflow.add_edge("company_info_agent", END)
     workflow.add_edge("fallback_agent", END)
     workflow.add_edge("error_handler", END)
 

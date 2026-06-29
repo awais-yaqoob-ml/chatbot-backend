@@ -3,6 +3,7 @@ import logging
 from graph.nodes import (
     INTENT_GREETING,
     INTENT_SUMMARIZATION,
+    INTENT_COMPANY_INFO,
     INTENT_COMPANY_QA,
     INTENT_FALLBACK,
 )
@@ -32,6 +33,7 @@ def route_by_intent(state: AgentState) -> str:
     intent_node_map = {
         INTENT_GREETING: "greeting_agent",
         INTENT_SUMMARIZATION: "summarization_agent",
+        INTENT_COMPANY_INFO: "company_info_agent",
         INTENT_COMPANY_QA: "company_qa_agent",
         INTENT_FALLBACK: "fallback_agent",
     }

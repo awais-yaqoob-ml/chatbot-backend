@@ -86,6 +86,21 @@ class Settings(BaseSettings):
         alias="RETRIEVAL_THRESHOLD",
     )
 
+    query_rewriting_enabled: bool = Field(
+        default=True,
+        alias="QUERY_REWRITING_ENABLED",
+    )
+
+    hybrid_alpha: float = Field(
+        default=0.7,
+        alias="HYBRID_ALPHA",
+    )
+
+    company_profile_enabled: bool = Field(
+        default=True,
+        alias="COMPANY_PROFILE_ENABLED",
+    )
+
     # ======================================================
     # API
     # ======================================================

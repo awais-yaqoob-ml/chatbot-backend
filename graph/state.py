@@ -10,6 +10,9 @@ class AgentState(TypedDict):
     # Intent classification
     intent: Optional[str]  # GREETING | SUMMARIZATION | COMPANY_QA | FALLBACK
 
+    # Query rewriting (for COMPANY_QA)
+    rewritten_query: Optional[str]  # Search-optimized query after rewriting
+
     # Retrieval (for COMPANY_QA)
     retrieved_chunks: List[Dict]
     retrieval_score: float
@@ -21,6 +24,9 @@ class AgentState(TypedDict):
     final_answer: str
     sources: List[Dict]
     summary: Optional[str]  # For SUMMARIZATION intent
+
+    # Company profile
+    company_profile: Optional[str]
 
     # Metadata
     agent_used: str

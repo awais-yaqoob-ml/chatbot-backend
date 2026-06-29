@@ -34,11 +34,18 @@ class SourceDoc(BaseModel):
     score: float
 
 
+class ResponseImage(BaseModel):
+    filename: str
+    mime_type: str
+    data: str
+
+
 class ChatResponse(BaseModel):
     session_id: UUID
     answer: str
     agent_used: str
     sources: List[SourceDoc] = []
+    images: List[ResponseImage] = []
     timestamp: datetime
 
 
@@ -69,10 +76,30 @@ class SessionsResponse(BaseModel):
 # =========================================================
 
 class HealthResponse(BaseModel):
+    model_config = {"protected_namespaces": ()}
+
     status: str
     weaviate_connected: bool
     model_loaded: bool
     graph_compiled: bool
+
+
+# =========================================================
+# DOCUMENTS
+# =========================================================
+
+class DocumentInfo(BaseModel):
+    doc_id: str
+    filename: str
+    doc_summary: str = ""
+    topics: List[str] = []
+    uploaded_at: str = ""
+    chunk_count: int = 0
+
+
+class DocumentListResponse(BaseModel):
+    documents: List[DocumentInfo]
+    total: int
 
 
 # =========================================================

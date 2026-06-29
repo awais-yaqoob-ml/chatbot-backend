@@ -5,6 +5,8 @@ from core.config import settings
 from services.embedding_service import embed_query
 from services.retrieval_service import retrieve_chunks
 from services.llm_service import get_llm, build_messages, run_llm
+from services.company_profile_service import get_company_profile
+from services.image_resolver import resolve_images
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +14,7 @@ logger = logging.getLogger(__name__)
 INTENT_GREETING = "GREETING"
 INTENT_SUMMARIZATION = "SUMMARIZATION"
 INTENT_COMPANY_QA = "COMPANY_QA"
+INTENT_COMPANY_INFO = "COMPANY_INFO"
 INTENT_FALLBACK = "FALLBACK"
 
 
@@ -20,13 +23,15 @@ INTENT_FALLBACK = "FALLBACK"
 # ==============================================================================
 
 
-def intent_classifier_node(state, llm) -> dict:
+def intent_classifier_node(state, llm, client) -> dict:
     """
-    Classify user intent into one of: GREETING, SUMMARIZATION, COMPANY_QA, FALLBACK.
+    Classify user intent into one of: GREETING, SUMMARIZATION,
+    COMPANY_INFO, COMPANY_QA, FALLBACK.
 
     Args:
         state: AgentState containing user_message
         llm: Language model instance
+        client: Weaviate client (for fetching company profile)
 
     Returns:
         dict with intent field set
@@ -36,14 +41,24 @@ def intent_classifier_node(state, llm) -> dict:
 
         user_message = state["user_message"]
 
+        company_profile = get_company_profile(client) or ""
+        profile_section = (
+            f"\n\nCompany context:\n{company_profile[:2000]}"
+            if company_profile
+            else ""
+        )
+
         system_prompt = (
             "You are an intent classification system. "
-            "Classify the user query into exactly one of: GREETING, SUMMARIZATION, COMPANY_QA, FALLBACK.\n\n"
+            "Classify the user query into exactly one of: "
+            "GREETING, SUMMARIZATION, COMPANY_INFO, COMPANY_QA, FALLBACK.\n\n"
             "Classification rules:\n"
             "- GREETING: Greetings, pleasantries, small talk (Hi, Hello, Good morning, How are you?, Thanks, Nice to meet you)\n"
             "- SUMMARIZATION: Requests to summarize conversation (Summarize our conversation, What have we discussed?, Give me a summary, Recap)\n"
-            "- COMPANY_QA: Questions about company policies, documents, procedures, or business-specific inquiries answerable from knowledge base\n"
-            "- FALLBACK: Anything unrelated to company information (Who won the World Cup?, Explain quantum mechanics, Write Python code, General knowledge)\n\n"
+            "- COMPANY_INFO: Questions about the company itself, its overview, what it does, general company information (Tell me about the company, What does your company do, Company overview, About us)\n"
+            "- COMPANY_QA: Questions about specific policies, procedures, documents, or business-specific inquiries answerable from the company knowledge base\n"
+            "- FALLBACK: Anything unrelated to the company (Who won the World Cup?, Explain quantum mechanics, Write Python code, General knowledge)"
+            f"{profile_section}\n\n"
             "Return ONLY the label, no explanation."
         )
 
@@ -56,7 +71,13 @@ def intent_classifier_node(state, llm) -> dict:
         response = run_llm(llm, messages).strip().upper()
 
         # Validate intent
-        valid_intents = [INTENT_GREETING, INTENT_SUMMARIZATION, INTENT_COMPANY_QA, INTENT_FALLBACK]
+        valid_intents = [
+            INTENT_GREETING,
+            INTENT_SUMMARIZATION,
+            INTENT_COMPANY_INFO,
+            INTENT_COMPANY_QA,
+            INTENT_FALLBACK,
+        ]
         intent = response if response in valid_intents else INTENT_FALLBACK
 
         logger.info(f"Intent classified as: {intent}")
@@ -69,16 +90,62 @@ def intent_classifier_node(state, llm) -> dict:
 
 
 # ==============================================================================
+# QUERY REWRITING NODE (used for COMPANY_QA)
+# ==============================================================================
+
+
+def rewrite_query_node(state, llm) -> dict:
+    """
+    Rewrite user message into a search-optimized standalone query.
+    Incorporates conversation history for follow-up questions.
+
+    Args:
+        state: AgentState with user_message and chat_history
+        llm: Language model instance
+
+    Returns:
+        dict with rewritten_query field
+    """
+    if not settings.query_rewriting_enabled:
+        return {"rewritten_query": state["user_message"]}
+
+    try:
+        logger.info("Running rewrite_query_node")
+
+        user_message = state["user_message"]
+        chat_history = state.get("chat_history", [])
+
+        system_prompt = (
+            "You are a query rewriting assistant for a company document search system. "
+            "Given the conversation history and the user's latest question, "
+            "rewrite it as a standalone, search-optimized query for a vector database. "
+            "Remove conversational filler, inject implied context from history, "
+            "and output ONLY the rewritten query, no explanation."
+        )
+
+        messages = build_messages(system_prompt, chat_history, user_message)
+        rewritten = run_llm(llm, messages).strip()
+
+        logger.info(f"Rewritten query: {rewritten}")
+
+        return {"rewritten_query": rewritten}
+
+    except Exception as e:
+        logger.exception("rewrite_query_node failed")
+        return {"rewritten_query": state["user_message"], "error": str(e)}
+
+
+# ==============================================================================
 # RETRIEVAL NODE (used for COMPANY_QA)
 # ==============================================================================
 
 
 def retrieve_node(state, embed_model, client) -> dict:
     """
-    Retrieve relevant chunks from vector database.
+    Retrieve relevant chunks from vector database using hybrid search.
 
     Args:
-        state: AgentState containing user_message
+        state: AgentState containing user_message (or rewritten_query)
         embed_model: Embedding model for vectorizing queries
         client: Weaviate client
 
@@ -88,14 +155,16 @@ def retrieve_node(state, embed_model, client) -> dict:
     try:
         logger.info("Running retrieve_node")
 
-        query = state["user_message"]
+        query = state.get("rewritten_query") or state["user_message"]
 
         query_vector = embed_query(embed_model, query)
 
         chunks = retrieve_chunks(
             client=client,
+            query_text=query,
             query_vector=query_vector,
             top_k=settings.top_k,
+            alpha=settings.hybrid_alpha,
         )
 
         max_score = max([c["score"] for c in chunks], default=0.0)
@@ -252,7 +321,9 @@ def company_qa_agent_node(state, llm) -> dict:
             "Answer ONLY using the provided context. "
             "If the answer is not in the context, say: "
             "'I could not find this information in the company documents.' "
-            "Always cite source filename and page number."
+            "Always cite source filename and page number. "
+            "Context may contain image references like ![Image](filename). "
+            "Include these in your answer where relevant to reference diagrams or screenshots."
             f"\n\nContext:\n{context}"
         )
 
@@ -276,14 +347,66 @@ def company_qa_agent_node(state, llm) -> dict:
 
         logger.info(f"Company QA completed with {len(sources)} sources")
 
+        images = resolve_images(answer, chunks)
+
         return {
             "final_answer": answer,
             "sources": sources,
             "agent_used": "CompanyQAAgent",
+            "images": images,
         }
 
     except Exception as e:
         logger.exception("company_qa_agent_node failed")
+        return {"error": str(e)}
+
+
+# ==============================================================================
+# COMPANY INFO AGENT NODE
+# ==============================================================================
+
+
+def company_info_agent_node(state, client, llm) -> dict:
+    """
+    Answer questions about the company itself using the company profile.
+
+    Args:
+        state: AgentState with user_message and company_profile
+        client: Weaviate client
+        llm: Language model instance
+
+    Returns:
+        dict with final_answer, sources, and agent_used
+    """
+    try:
+        logger.info("Running company_info_agent_node")
+
+        user_message = state["user_message"]
+        company_profile = get_company_profile(client) or "No company profile available."
+
+        system_prompt = (
+            "You are a company information assistant. "
+            "Answer questions about the company using the provided company profile. "
+            "If the user asks something not covered by the profile, say so honestly."
+            f"\n\nCompany Profile:\n{company_profile}"
+        )
+
+        messages = build_messages(
+            system_prompt=system_prompt,
+            chat_history=state.get("chat_history", []),
+            user_message=user_message,
+        )
+
+        answer = run_llm(llm, messages)
+
+        return {
+            "final_answer": answer,
+            "sources": [],
+            "agent_used": "CompanyInfoAgent",
+        }
+
+    except Exception as e:
+        logger.exception("company_info_agent_node failed")
         return {"error": str(e)}
 
 

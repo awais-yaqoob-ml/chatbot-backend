@@ -4,9 +4,10 @@ from uuid import uuid4
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 
 from core.config import settings
-from core.dependencies import get_weaviate_client_dep, get_embed_model
-from models.schemas import IngestionResponse
+from core.dependencies import get_weaviate_client_dep, get_embed_model, get_llm_dep
+from models.schemas import IngestionResponse, DocumentInfo, DocumentListResponse
 from services.ingestion_service import ingest_document
+from services.company_profile_service import list_documents, delete_document
 from utils.file_utils import is_pdf, is_docx, generate_doc_id, ensure_dir
 
 router = APIRouter(prefix="/api/v1", tags=["ingestion"])
@@ -17,6 +18,7 @@ async def ingest_file(
     file: UploadFile = File(...),
     client=Depends(get_weaviate_client_dep),
     model=Depends(get_embed_model),
+    llm=Depends(get_llm_dep),
 ):
     filename = file.filename
 
@@ -35,6 +37,7 @@ async def ingest_file(
     result = ingest_document(
         client=client,
         model=model,
+        llm=llm,
         file_bytes=file_bytes,
         filename=filename,
         doc_id=doc_id,
@@ -48,3 +51,24 @@ async def ingest_file(
         images_extracted=result["images_extracted"],
         pages_processed=result["pages_processed"],
     )
+
+
+@router.get("/documents", response_model=DocumentListResponse)
+async def list_ingested_docs(
+    client=Depends(get_weaviate_client_dep),
+):
+    docs = list_documents(client)
+    return DocumentListResponse(
+        documents=[DocumentInfo(**d) for d in docs],
+        total=len(docs),
+    )
+
+
+@router.delete("/documents/{doc_id}", status_code=204)
+async def delete_ingested_doc(
+    doc_id: str,
+    client=Depends(get_weaviate_client_dep),
+):
+    success = delete_document(client, doc_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Document not found")

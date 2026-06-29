@@ -1,4 +1,5 @@
 import logging
+import time
 
 import weaviate
 
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def get_weaviate_client():
     """
-    Connect to Docker-hosted Weaviate.
+    Connect to Docker-hosted Weaviate with retries.
     """
 
     client = weaviate.connect_to_local(
@@ -19,12 +20,15 @@ def get_weaviate_client():
         grpc_port=settings.weaviate_grpc_port,
     )
 
-    if not client.is_ready():
-        raise RuntimeError("Weaviate is not ready")
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        if client.is_ready():
+            logger.info("Connected to Weaviate")
+            return client
+        logger.info("Weaviate not ready yet, waiting...")
+        time.sleep(2)
 
-    logger.info("Connected to Weaviate")
-
-    return client
+    raise RuntimeError("Weaviate did not become ready within 30 seconds")
 
 
 def initialize_weaviate(client):

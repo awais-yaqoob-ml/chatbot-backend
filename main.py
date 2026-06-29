@@ -65,10 +65,11 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Shutting down application...")
-    try:
-        client.close()
-    except Exception:
-        pass
+    if "client" in locals():
+        try:
+            client.close()
+        except Exception:
+            pass
 
 
 app = FastAPI(

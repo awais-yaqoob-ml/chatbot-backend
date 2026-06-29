@@ -4,7 +4,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 
 from core.dependencies import get_weaviate_client_dep, get_graph, get_embed_model
-from models.schemas import ChatRequest, ChatResponse, SourceDoc
+from models.schemas import ChatRequest, ChatResponse, SourceDoc, ResponseImage
 from services.history_service import save_message, get_history
 
 logger = logging.getLogger(__name__)
@@ -41,6 +41,8 @@ async def chat(
         "chat_history": history,
         # Intent classification
         "intent": None,
+        # Query rewriting
+        "rewritten_query": None,
         # Retrieval (for COMPANY_QA)
         "retrieved_chunks": [],
         "retrieval_score": 0.0,
@@ -50,6 +52,9 @@ async def chat(
         "final_answer": "",
         "sources": [],
         "summary": None,
+        "images": [],
+        # Company profile
+        "company_profile": None,
         # Metadata
         "agent_used": "",
         "error": None,
@@ -63,6 +68,7 @@ async def chat(
         agent_used = result.get("agent_used", "")
         answer = result.get("final_answer", "")
         sources = result.get("sources", [])
+        images_data = result.get("images", [])
 
         logger.info(f"Intent classified as: {intent}")
         logger.info(f"Routed to agent: {agent_used}")
@@ -86,6 +92,7 @@ async def chat(
                 )
                 for s in sources
             ],
+            images=[ResponseImage(**img) for img in images_data],
             timestamp=datetime.utcnow(),
         )
 
