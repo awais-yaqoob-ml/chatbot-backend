@@ -17,10 +17,13 @@
 import logging
 from contextlib import asynccontextmanager
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import settings
+
+load_dotenv()
 from core.logging import setup_logging
 from core.model_loader import load_embedding_model
 from core.weaviate_client import (

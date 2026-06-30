@@ -322,8 +322,10 @@ def company_qa_agent_node(state, llm) -> dict:
             "If the answer is not in the context, say: "
             "'I could not find this information in the company documents.' "
             "Always cite source filename and page number. "
-            "Context may contain image references like ![Image](filename). "
-            "Include these in your answer where relevant to reference diagrams or screenshots."
+            "The context contains image references like ![Image](filename) that represent "
+            "diagrams or screenshots from the document. You MUST include the exact "
+            "![Image](filename) tag from the context in your answer at the point where "
+            "the image is relevant. Never remove or alter these tags."
             f"\n\nContext:\n{context}"
         )
 
@@ -347,10 +349,10 @@ def company_qa_agent_node(state, llm) -> dict:
 
         logger.info(f"Company QA completed with {len(sources)} sources")
 
-        images = resolve_images(answer, chunks)
+        cleaned_answer, images = resolve_images(answer, chunks)
 
         return {
-            "final_answer": answer,
+            "final_answer": cleaned_answer,
             "sources": sources,
             "agent_used": "CompanyQAAgent",
             "images": images,

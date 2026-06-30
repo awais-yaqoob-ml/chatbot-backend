@@ -125,6 +125,30 @@ class Settings(BaseSettings):
     )
 
     # ======================================================
+    # LANGSMITH (tracing)
+    # ======================================================
+
+    langsmith_tracing: bool = Field(
+        default=True,
+        alias="LANGSMITH_TRACING",
+    )
+
+    langsmith_api_key: str = Field(
+        default="",
+        alias="LANGSMITH_API_KEY",
+    )
+
+    langsmith_project: str = Field(
+        default="company-chatbot",
+        alias="LANGSMITH_PROJECT",
+    )
+
+    langsmith_endpoint: str = Field(
+        default="https://api.smith.langchain.com",
+        alias="LANGSMITH_ENDPOINT",
+    )
+
+    # ======================================================
     # FILES
     # ======================================================
 

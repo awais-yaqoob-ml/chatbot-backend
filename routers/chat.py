@@ -62,7 +62,10 @@ async def chat(
 
     try:
         logger.info("Invoking graph with intent-based routing")
-        result = await graph.ainvoke(state)
+        result = await graph.ainvoke(state, {
+            "run_name": "ChatRequest",
+            "tags": ["company-chatbot", f"session:{session_id}"],
+        })
 
         intent = result.get("intent", "UNKNOWN")
         agent_used = result.get("agent_used", "")
