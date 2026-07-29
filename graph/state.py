@@ -17,9 +17,6 @@ class AgentState(TypedDict):
     retrieved_chunks: List[Dict]
     retrieval_score: float
 
-    # Routing (legacy, kept for backward compatibility)
-    agent_decision: Optional[str]
-
     # Output
     final_answer: str
     sources: List[Dict]

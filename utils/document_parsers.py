@@ -1,13 +1,17 @@
 import fitz  # PyMuPDF
 from docx import Document
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Set
 
 
 def parse_pdf(file_path: str, output_image_dir: str) -> Dict:
     """
     Extract text and images from PDF, preserving per-page structure.
     Image tags like ![Image](page_X_img_Y.png) are embedded in the text.
+
+    Filtering rules:
+      - Images with the same xref on multiple pages are extracted only once
+        (from the first page they appear on).
     """
     doc = fitz.open(file_path)
 
@@ -15,6 +19,7 @@ def parse_pdf(file_path: str, output_image_dir: str) -> Dict:
     image_paths = []
     pages = []
     pages_processed = doc.page_count
+    seen_xrefs: Set[int] = set()
 
     output_dir = Path(output_image_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -30,6 +35,11 @@ def parse_pdf(file_path: str, output_image_dir: str) -> Dict:
 
         for img_index, img in enumerate(images):
             xref = img[0]
+
+            if xref in seen_xrefs:
+                continue
+            seen_xrefs.add(xref)
+
             base_image = doc.extract_image(xref)
             image_bytes = base_image["image"]
 

@@ -31,7 +31,12 @@ function esc(s: string): string {
 }
 
 function inline(s: string): string {
-  return s
+  const tags: string[] = [];
+  const clean = s.replace(/<[^>]+>/g, (m) => {
+    tags.push(m);
+    return `\x00${tags.length - 1}\x00`;
+  });
+  const result = clean
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/__([^_]+)__/g, "<strong>$1</strong>")
     .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "<em>$1</em>")
@@ -39,6 +44,7 @@ function inline(s: string): string {
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/~~(.+?)~~/g, "<del>$1</del>")
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  return result.replace(/\x00(\d+)\x00/g, (_, i) => tags[+i]);
 }
 
 function block(text: string): string {

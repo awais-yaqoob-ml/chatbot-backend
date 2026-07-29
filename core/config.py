@@ -44,10 +44,6 @@ class Settings(BaseSettings):
     # WEAVIATE
     # ======================================================
 
-    # ======================================================
-    # WEAVIATE
-    # ======================================================
-
     weaviate_host: str = Field(
         default="localhost",
         alias="WEAVIATE_HOST",
@@ -79,11 +75,6 @@ class Settings(BaseSettings):
     top_k: int = Field(
         default=5,
         alias="TOP_K",
-    )
-
-    retrieval_threshold: float = Field(
-        default=0.50,
-        alias="RETRIEVAL_THRESHOLD",
     )
 
     query_rewriting_enabled: bool = Field(

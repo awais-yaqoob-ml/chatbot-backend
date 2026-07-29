@@ -13,5 +13,6 @@ def embed_texts(model: SentenceTransformer, texts: List[str]) -> List[List[float
 def embed_query(model: SentenceTransformer, text: str) -> List[float]:
     """
     Generate embedding for a single query.
+    Uses prompt_name='query' for instruction-aware models.
     """
-    return model.encode([text], normalize_embeddings=True)[0].tolist()
+    return model.encode([text], normalize_embeddings=True, prompt_name="query")[0].tolist()

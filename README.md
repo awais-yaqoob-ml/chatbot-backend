@@ -16,9 +16,9 @@ A production-style **multi-agent RAG chatbot backend** built with:
 - 📄 Upload PDF / DOCX documents
 - 🧠 Extract text + images from documents
 - 🔍 Vector search with Weaviate
-- 🤖 Multi-agent routing (LangGraph)
-  - Knowledge Agent (RAG-based)
-  - General Agent (fallback LLM)
+- 🤖 Multi-agent routing (LangGraph) with LLM intent classification
+  - GreetingAgent, SummarizationAgent, CompanyInfoAgent
+  - CompanyQAAgent (RAG-based), FallbackAgent, ErrorHandler
 - 💬 Persistent chat history (Weaviate)
 - ⚡ FastAPI async API
 - 🧩 Modular production-grade architecture
@@ -30,10 +30,12 @@ A production-style **multi-agent RAG chatbot backend** built with:
 ```bash
 User → FastAPI → LangGraph
 │
-├── retrieve_node (Weaviate search)
-├── router_node (score-based decision)
-├── knowledge_agent (RAG + Groq)
-└── general_agent (LLM only)
+├── intent_classifier (LLM intent detection)
+│   ├── GREETING → greeting_agent
+│   ├── SUMMARIZATION → summarization_agent
+│   ├── COMPANY_INFO → company_info_agent
+│   ├── COMPANY_QA → rewrite_query → retrieve_node → company_qa_agent
+│   └── FALLBACK → fallback_agent
 ```
 
 ---
@@ -42,13 +44,15 @@ User → FastAPI → LangGraph
 
 ```bash
 backend/
-├── core/
-├── graph/
-├── models/
-├── services/
-├── routers/
-├── utils/
-├── main.py
+├── core/            # Config, logging, model loading, Weaviate client
+├── graph/           # LangGraph state, nodes, edges, graph builder
+├── models/          # Pydantic schemas, Weaviate collection definitions
+├── services/        # Business logic (LLM, embeddings, retrieval, ingestion, etc.)
+├── routers/         # FastAPI route handlers (chat, ingestion, history)
+├── utils/           # Chunking, document parsers, file utils
+├── tests/           # pytest unit tests
+├── frontend/        # React + Vite SPA (and Streamlit alternative)
+├── main.py          # FastAPI entry point
 ```
 
 ---
@@ -64,15 +68,20 @@ pip install -r requirements.txt
 # set environment variables for example
 GROQ_API_KEY=your_key_here
 ```
-### 3. Run server
+### 3. Run backend server
 ```bash
 uvicorn main:app --reload --port 8000
 ```
-### 4. Open API docs
+### 4. Run frontend (React)
+```bash
+cd frontend/react-app && npm install && npm run dev
+# → http://localhost:5173 (proxies /api to backend)
+```
+### 5. Open API docs
 ```bash
 http://localhost:8000/docs
 ```
-### 5. 📡 API Endpoints
+### 6. 📡 API Endpoints
 
 ### Ingestion
 ```bash
@@ -94,7 +103,7 @@ POST /api/v1/chat
 ```bash
 {
   "answer": "...",
-  "agent_used": "KnowledgeAgent",
+  "agent_used": "CompanyQAAgent",
   "sources": []
 }
 ```
@@ -109,35 +118,36 @@ GET /api/v1/sessions
 GET /health
 ```
 ### 🧠 Agent Logic
-- Knowledge Agent
-- Uses retrieved document chunks
-- Forces grounded answers
-- Requires citations
-- General Agent
-- Used when retrieval confidence is low
-- No document context
+- **GreetingAgent** — Static greeting/small talk response
+- **SummarizationAgent** — LLM summary of conversation history
+- **CompanyInfoAgent** — Answers from consolidated company profile
+- **CompanyQAAgent** — RAG answer from retrieved document chunks with source citations
+- **FallbackAgent** — Polite decline for out-of-domain queries
+- **ErrorHandler** — Generic error response on failures
 
 ### 🗄 Data Storage
 - Weaviate Collections
-- DocumentChunk
-- ChatHistory
+- **DocumentChunk** — Vector + text chunks with hybrid search (BM25 + vector)
+- **ChatHistory** — Persistent conversation storage per session
+- **Document** — Per-document metadata, summary, topics
+- **CompanyProfile** — Consolidated company overview from all documents
 
 ### 🔧 Tech Stack
-- FastAPI
-- LangGraph
-- Groq LLM
-- SentenceTransformers
-- Weaviate v4
-- PyMuPDF
-- python-docx
+- FastAPI (async backend)
+- LangGraph (agent orchestration)
+- Groq LLM (gpt-oss-120b)
+- Qwen3-Embedding-0.6B (1024-dim embeddings via SentenceTransformers)
+- Weaviate v4 (vector DB with hybrid search)
+- PyMuPDF (PDF parsing)
+- python-docx (DOCX parsing)
+- React 18 + Vite + TypeScript (frontend SPA)
 📌 Notes
 ---
 
 ## TO DO...
 - Add answer validation agent
 - Add reranking model (cross-encoder)
-- Switch to hybrid search (BM25 + vector)
+- Upgrade embedding model (0.6B → 4B) for better accuracy
 - Add streaming responses (SSE/WebSockets)
-- Add LangSmith tracing
 - Support for more document formats
 ---

@@ -39,20 +39,3 @@ def route_by_intent(state: AgentState) -> str:
     }
 
     return intent_node_map.get(intent, "fallback_agent")
-
-
-def route_after_retrieval(state: AgentState) -> str:
-    """
-    Legacy edge function for backward compatibility.
-    Decide next node after retrieval + routing step.
-
-    Args:
-        state: AgentState
-
-    Returns:
-        str: Next node name
-    """
-    if state.get("error"):
-        return "error_handler"
-
-    return state.get("agent_decision", "general_agent")

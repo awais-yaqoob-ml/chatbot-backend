@@ -3,7 +3,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from core.dependencies import get_weaviate_client_dep, get_graph, get_embed_model
+from core.dependencies import get_weaviate_client_dep, get_graph
 from models.schemas import ChatRequest, ChatResponse, SourceDoc, ResponseImage
 from services.history_service import save_message, get_history
 
@@ -46,8 +46,6 @@ async def chat(
         # Retrieval (for COMPANY_QA)
         "retrieved_chunks": [],
         "retrieval_score": 0.0,
-        # Routing (legacy support)
-        "agent_decision": None,
         # Output
         "final_answer": "",
         "sources": [],

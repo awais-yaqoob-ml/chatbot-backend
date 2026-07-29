@@ -16,7 +16,10 @@ def load_embedding_model() -> SentenceTransformer:
     """
     logger.info(f"Loading embedding model: {settings.embed_model}")
 
-    model = SentenceTransformer(settings.embed_model)
+    model = SentenceTransformer(
+        settings.embed_model,
+        model_kwargs={"device_map": "auto"},
+    )
 
     logger.info("Embedding model loaded successfully")
     return model
