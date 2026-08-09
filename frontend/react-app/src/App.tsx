@@ -97,6 +97,18 @@ export default function App() {
                 <div className="bubble">
                   <Markdown text={msg.content} />
 
+                {msg.images && msg.images.length > 0 && (
+                  <div className="assistant-images">
+                    {msg.images.map((img, k) => (
+                      <img
+                        key={k}
+                        src={`data:${img.mime_type};base64,${img.data}`}
+                        alt={img.filename}
+                      />
+                    ))}
+                  </div>
+                )}
+
                 {msg.agent && (
                   <span className="agent-tag">{msg.agent}</span>
                 )}

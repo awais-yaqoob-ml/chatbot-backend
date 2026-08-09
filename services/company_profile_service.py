@@ -1,6 +1,8 @@
 import logging
 from datetime import datetime
 
+from weaviate.classes.query import Filter
+
 from core.config import settings
 from services.llm_service import build_messages, run_llm
 
@@ -140,15 +142,13 @@ def delete_document(client, doc_id: str):
     Delete a document and all its chunks from Weaviate.
     """
     try:
+        filter = Filter.by_property("doc_id").equal(doc_id)
+
         chunk_collection = client.collections.get("DocumentChunk")
-        chunk_collection.data.delete_many(
-            where={"path": ["doc_id"], "operator": "Equal", "valueText": doc_id}
-        )
+        chunk_collection.data.delete_many(where=filter)
 
         doc_collection = client.collections.get("Document")
-        doc_collection.data.delete_many(
-            where={"path": ["doc_id"], "operator": "Equal", "valueText": doc_id}
-        )
+        doc_collection.data.delete_many(where=filter)
 
         logger.info(f"Deleted document {doc_id}")
         return True

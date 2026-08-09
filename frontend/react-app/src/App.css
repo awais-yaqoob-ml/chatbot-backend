@@ -213,6 +213,14 @@ body {
   display: block;
 }
 
+.assistant-images img {
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  margin: 10px 0;
+  display: block;
+}
+
 .typing {
   color: #999;
   font-style: italic;

@@ -1,9 +1,19 @@
 import base64
-import mimetypes
 import re
 from pathlib import Path
 
 from core.config import settings
+
+# (magic bytes prefix, mime type). Checked in order.
+_MAGIC_MIME = [
+    (b"\x89PNG\r\n\x1a\n", "image/png"),
+    (b"\xff\xd8\xff", "image/jpeg"),
+    (b"GIF87a", "image/gif"),
+    (b"GIF89a", "image/gif"),
+    (b"BM", "image/bmp"),
+]
+
+_TAG_PATTERN = r'!\[([^\]]+)\]\(([^)]+)\)'
 
 
 def _parse_img_tag(filename: str):
@@ -15,6 +25,18 @@ def _parse_img_tag(filename: str):
     return None
 
 
+def _detect_mime(data: bytes) -> str:
+    """Detect image MIME type from magic bytes instead of the file extension.
+    Extracted images are often written with a .png extension even when the
+    underlying bytes are JPEG, so extension-based guessing is unreliable."""
+    for magic, mime in _MAGIC_MIME:
+        if data.startswith(magic):
+            return mime
+    if len(data) >= 12 and data[0:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return "image/png"
+
+
 def _load_image(doc_id: str, filename: str):
     """Load and base64-encode an image from disk."""
     image_path = Path(settings.assets_path) / doc_id / "images" / filename
@@ -22,7 +44,7 @@ def _load_image(doc_id: str, filename: str):
         return None
     file_bytes = image_path.read_bytes()
     encoded = base64.b64encode(file_bytes).decode()
-    mime_type = mimetypes.guess_type(str(image_path))[0] or "image/png"
+    mime_type = _detect_mime(file_bytes)
     return {
         "filename": filename,
         "mime_type": mime_type,
@@ -66,15 +88,16 @@ def resolve_images(answer, retrieved_chunks):
     if not stored_map:
         return answer, []
 
-    # Scan the answer for image reference tags
-    tag_pattern = r'!\[[Ii]mage\]\(([^)]+)\)'
-    refs_in_answer = re.findall(tag_pattern, answer)
+    # Scan the answer for image reference tags like ![Image](filename),
+    # ![Screenshot](filename), etc. Broad matching so small LLM deviations
+    # from the exact tag format still get resolved.
+    refs_in_answer = re.findall(_TAG_PATTERN, answer)
 
     images = []
     seen_filenames = set()
-    resolved_refs = {}  # reference text -> base64 <img> tag or removal marker
+    resolved_refs = {}  # reference url -> base64 <img> tag or removal marker
 
-    for ref in refs_in_answer:
+    for _, ref in refs_in_answer:
         if ref in resolved_refs:
             continue
 
@@ -111,9 +134,9 @@ def resolve_images(answer, retrieved_chunks):
 
     # Build cleaned answer: replace resolved tags with <img>, remove unresolved
     def _replace_tag(m):
-        ref = m.group(1)
+        ref = m.group(2)
         return resolved_refs.get(ref, "")
 
-    cleaned = re.sub(tag_pattern, _replace_tag, answer)
+    cleaned = re.sub(_TAG_PATTERN, _replace_tag, answer)
 
     return cleaned, images

@@ -14,7 +14,8 @@ A production-style **multi-agent RAG chatbot backend** built with:
 ## 🚀 Features
 
 - 📄 Upload PDF / DOCX documents
-- 🧠 Extract text + images from documents
+- 🧠 Extract text + images from documents (position-aware parsing)
+- 🖼 Answers embed only relevant screenshots inline — rendered in the React frontend
 - 🔍 Vector search with Weaviate
 - 🤖 Multi-agent routing (LangGraph) with LLM intent classification
   - GreetingAgent, SummarizationAgent, CompanyInfoAgent
@@ -104,9 +105,18 @@ POST /api/v1/chat
 {
   "answer": "...",
   "agent_used": "CompanyQAAgent",
-  "sources": []
+  "sources": [],
+  "images": [
+    {
+      "filename": "page_21_img_0.png",
+      "mime_type": "image/jpeg",
+      "data": "data:image/jpeg;base64,...."
+    }
+  ]
 }
 ```
+`images` contains the screenshots referenced by the answer, resolved to base64
+data-URIs (with MIME type detected from file magic bytes).
 ### History
 ```bash
 GET /api/v1/history/{session_id}
@@ -131,6 +141,21 @@ GET /health
 - **ChatHistory** — Persistent conversation storage per session
 - **Document** — Per-document metadata, summary, topics
 - **CompanyProfile** — Consolidated company overview from all documents
+
+### 🖼 Image Handling
+- **Position-aware PDF parsing** — each page is rebuilt line-by-line from
+  `page.get_text("words")` and merged with image tags sorted by y/x position, so
+  `![Image](page_X_img_Y.png)` tags sit inline next to the paragraph they belong to
+  (instead of a blob at the end of the page).
+- **Per-page rendering detection** — uses `page.get_image_info(xrefs=True)` so only
+  images actually drawn on a page are tagged (shared/inherited xrefs are ignored).
+- **Decorative-image filtering** — skips tiny icons (< 100 px in both dimensions) and
+  images whose xref renders on multiple pages (repeated logos / watermarks).
+- **Answer image resolution** — `resolve_images` scans the LLM answer for image tags,
+  resolves them to base64 data-URIs served with the correct MIME type (detected from
+  magic bytes, so JPEG content named `.png` works), and drops unresolved references.
+- **React rendering** — the frontend renders `msg.images` inline under the assistant
+  bubble (`frontend/react-app/src/App.tsx`).
 
 ### 🔧 Tech Stack
 - FastAPI (async backend)
